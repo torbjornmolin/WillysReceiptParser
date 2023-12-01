@@ -1,7 +1,10 @@
+using Npgsql.Replication;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq.Expressions;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Xml;
+using WillysReceiptParser.Entity;
 
 namespace WillysReceiptParser
 {
@@ -41,13 +44,34 @@ namespace WillysReceiptParser
         public Receipt Parse()
         {
             var result = new Receipt();
+            result.FileOrigin = _pdfFile;
             var segmentedReceipt = splitter.GetSegmentedReceipt(_pdfFile);
             Console.WriteLine($"Parsing {_pdfFile}");
 
             result.LineItems = ReadLineItems(segmentedReceipt).ToArray();
             FixMissingCharacters(result.LineItems);
 
+            ReadMetaData(result);
+
             return result;
+        }
+
+        private void ReadMetaData(Receipt receipt)
+        {
+            var json = File.ReadAllText(_metaDataFile);
+
+            var metaData = JsonSerializer.Deserialize<MetaJsonFormat>(json);
+
+            if (metaData is null)
+            {
+                throw new InvalidOperationException("Could not read metadata from json.");
+            }
+            var dateTimeOffset = DateTimeOffset.FromUnixTimeSeconds(metaData.bookingDate / 1000 ?? throw new InvalidOperationException("Bookingdate not set."));
+
+            receipt.Date = dateTimeOffset.DateTime;
+            receipt.Store = metaData?.storeName ?? throw new InvalidOperationException("Store name not set.");
+            receipt.StoreId = int.Parse(metaData.storeCustomerId);
+            receipt.TotalAmount = metaData.amount ?? throw new InvalidOperationException("Receipt metadata amount not set.");
         }
 
         private List<LineItem> ReadLineItems(SegmentedReceipt segmentedReceipt)
@@ -117,6 +141,7 @@ namespace WillysReceiptParser
         {
             var discountLineMatch = discountLineItemRegex().Match(line);
             var priceByWeightMatch = priceByWeightLine().Match(line);
+            var unitPriceOnlyPriceByWeightLineMatch = unitPriceOnlyPriceByWeightLine().Match(line);
 
             if (discountLineMatch?.Success ?? false)
             {
@@ -130,6 +155,14 @@ namespace WillysReceiptParser
                 item.Quantity = decimal.Parse(priceByWeightMatch.Groups.Values.ElementAt(1).Value);
                 item.UnitPrice = decimal.Parse(priceByWeightMatch.Groups.Values.ElementAt(2).Value);
                 item.TotalPrice = decimal.Parse(priceByWeightMatch.Groups.Values.ElementAt(3).Value);
+
+                return true;
+            }
+
+            else if (unitPriceOnlyPriceByWeightLineMatch?.Success ?? false)
+            {
+                item.Quantity = decimal.Parse(unitPriceOnlyPriceByWeightLineMatch.Groups.Values.ElementAt(1).Value);
+                item.UnitPrice = decimal.Parse(unitPriceOnlyPriceByWeightLineMatch.Groups.Values.ElementAt(2).Value);
 
                 return true;
             }
@@ -227,7 +260,7 @@ namespace WillysReceiptParser
         [GeneratedRegex(@".xtrapris\s?")]
         private static partial Regex extraprisWithNoInfo();
 
-        [GeneratedRegex(@".abatt.*")]
+        [GeneratedRegex(@".*[Rr]abatt.*")]
         private static partial Regex rabattWithNoInfo();
 
         [GeneratedRegex(@"[Uu]tf.rs.l.*")] // Utförsäljning
@@ -242,5 +275,9 @@ namespace WillysReceiptParser
 
         [GeneratedRegex(@"\s(\d+,\d+)kg.?(\d+,\d+)kr.kg\s+(\d+,\d+)")]
         private static partial Regex priceByWeightLine();
+
+        // 0,724kg 99,00kr/kg
+        [GeneratedRegex(@"\s*(\d+,\d+)kg.(\d+,\d+)kr.kg\s*")]
+        private static partial Regex unitPriceOnlyPriceByWeightLine();
     }
 }

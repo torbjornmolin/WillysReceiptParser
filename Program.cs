@@ -15,6 +15,15 @@ namespace WillysReceiptParser
                 var parser = new ReceiptParser(file, file.Replace(".pdf", ".json"));
                 result.Add(parser.Parse());
             }
+
+            foreach (var receipt in result)
+            {
+                var receiptSum = receipt.LineItems.Sum(l => l.TotalPrice + l.Discount);
+                if(receiptSum != receipt.TotalAmount)
+                {
+                    Console.WriteLine($"Incorrect amount found: {receiptSum}, expected {receipt.TotalAmount} for receipt: {receipt.FileOrigin}");
+                }
+            }
         }
 
 
