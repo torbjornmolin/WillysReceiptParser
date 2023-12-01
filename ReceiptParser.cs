@@ -1,9 +1,6 @@
-using Npgsql.Replication;
-using System.Diagnostics.CodeAnalysis;
-using System.Linq.Expressions;
+using System.Globalization;
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using System.Xml;
 using WillysReceiptParser.Entity;
 
 namespace WillysReceiptParser
@@ -14,8 +11,7 @@ namespace WillysReceiptParser
         private readonly string _pdfFile;
         private readonly string _metaDataFile;
         private readonly ReceiptSplitter splitter;
-        private IFormatProvider? priceCultureInfo;
-
+        private NumberFormatInfo numberFormatInfo = new NumberFormatInfo { NumberDecimalSeparator = "," };
         public ReceiptParser(string pdfFile, string metaDataFile)
         {
             if (string.IsNullOrWhiteSpace(metaDataFile))
@@ -70,7 +66,7 @@ namespace WillysReceiptParser
 
             receipt.Date = dateTimeOffset.DateTime;
             receipt.Store = metaData?.storeName ?? throw new InvalidOperationException("Store name not set.");
-            receipt.StoreId = int.Parse(metaData.storeCustomerId);
+            receipt.StoreId = int.Parse(metaData.storeCustomerId, NumberStyles.Any, numberFormatInfo);
             receipt.TotalAmount = metaData.amount ?? throw new InvalidOperationException("Receipt metadata amount not set.");
         }
 
@@ -112,9 +108,9 @@ namespace WillysReceiptParser
             if (singleLineWithQuantityMatch?.Success ?? false)
             {
                 item.Name = singleLineWithQuantityMatch.Groups.Values.ElementAt(1).Value.Trim();
-                item.Quantity = int.Parse(singleLineWithQuantityMatch.Groups.Values.ElementAt(2).Value);
-                item.UnitPrice = decimal.Parse(singleLineWithQuantityMatch.Groups.Values.ElementAt(3).Value);
-                item.TotalPrice = decimal.Parse(singleLineWithQuantityMatch.Groups.Values.ElementAt(4).Value);
+                item.Quantity = int.Parse(singleLineWithQuantityMatch.Groups.Values.ElementAt(2).Value, NumberStyles.Any, numberFormatInfo);
+                item.UnitPrice = decimal.Parse(singleLineWithQuantityMatch.Groups.Values.ElementAt(3).Value, NumberStyles.Any, numberFormatInfo);
+                item.TotalPrice = decimal.Parse(singleLineWithQuantityMatch.Groups.Values.ElementAt(4).Value, NumberStyles.Any, numberFormatInfo);
 
                 return;
             }
@@ -123,8 +119,8 @@ namespace WillysReceiptParser
             {
                 item.Name = singleLineMatch.Groups.Values.ElementAt(1).Value.Trim();
                 item.Quantity = 1;
-                item.UnitPrice = decimal.Parse(singleLineMatch.Groups.Values.ElementAt(2).Value);
-                item.TotalPrice = decimal.Parse(singleLineMatch.Groups.Values.ElementAt(2).Value);
+                item.UnitPrice = decimal.Parse(singleLineMatch.Groups.Values.ElementAt(2).Value, NumberStyles.Any, numberFormatInfo);
+                item.TotalPrice = decimal.Parse(singleLineMatch.Groups.Values.ElementAt(2).Value, NumberStyles.Any, numberFormatInfo);
 
                 return;
             }
@@ -145,24 +141,24 @@ namespace WillysReceiptParser
 
             if (discountLineMatch?.Success ?? false)
             {
-                item.Discount = decimal.Parse(discountLineMatch.Groups.Values.ElementAt(1).Value);
+                item.Discount = decimal.Parse(discountLineMatch.Groups.Values.ElementAt(1).Value, NumberStyles.Any, numberFormatInfo);
 
                 return true;
             }
 
             else if (priceByWeightMatch?.Success ?? false)
             {
-                item.Quantity = decimal.Parse(priceByWeightMatch.Groups.Values.ElementAt(1).Value);
-                item.UnitPrice = decimal.Parse(priceByWeightMatch.Groups.Values.ElementAt(2).Value);
-                item.TotalPrice = decimal.Parse(priceByWeightMatch.Groups.Values.ElementAt(3).Value);
+                item.Quantity = decimal.Parse(priceByWeightMatch.Groups.Values.ElementAt(1).Value, NumberStyles.Any, numberFormatInfo);
+                item.UnitPrice = decimal.Parse(priceByWeightMatch.Groups.Values.ElementAt(2).Value, NumberStyles.Any, numberFormatInfo);
+                item.TotalPrice = decimal.Parse(priceByWeightMatch.Groups.Values.ElementAt(3).Value, NumberStyles.Any, numberFormatInfo);
 
                 return true;
             }
 
             else if (unitPriceOnlyPriceByWeightLineMatch?.Success ?? false)
             {
-                item.Quantity = decimal.Parse(unitPriceOnlyPriceByWeightLineMatch.Groups.Values.ElementAt(1).Value);
-                item.UnitPrice = decimal.Parse(unitPriceOnlyPriceByWeightLineMatch.Groups.Values.ElementAt(2).Value);
+                item.Quantity = decimal.Parse(unitPriceOnlyPriceByWeightLineMatch.Groups.Values.ElementAt(1).Value, NumberStyles.Any, numberFormatInfo);
+                item.UnitPrice = decimal.Parse(unitPriceOnlyPriceByWeightLineMatch.Groups.Values.ElementAt(2).Value, NumberStyles.Any, numberFormatInfo);
 
                 return true;
             }

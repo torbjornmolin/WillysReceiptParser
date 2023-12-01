@@ -7,7 +7,7 @@ namespace WillysReceiptParser
     {
         public static async Task Main(string[] args)
         {
-            const string receiptPath = @"C:\src\WillysReceiptParser\kvitton\";
+            const string receiptPath = @"kvitton";
 
             var result = new List<Receipt>();
             foreach (var file in Directory.GetFiles(receiptPath, "*.pdf"))
