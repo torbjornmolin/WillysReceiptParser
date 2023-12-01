@@ -42,13 +42,13 @@ namespace WillysReceiptParser
                     i++;
                     continue;
                 }
-                if (Regex.IsMatch(receiptLines[i].ToLower(), ".+sj.lvscanning.+"))
+                if (Regex.IsMatch(receiptLines[i].ToLower(), ".+sj.lvs.anning.+"))
                 {
                     i++;
                     continue;
                 }
 
-                lines.Add(receiptLines[i].Trim());
+                lines.Add(receiptLines[i]);
                 i++;
             }
             LineItems = lines.ToArray();

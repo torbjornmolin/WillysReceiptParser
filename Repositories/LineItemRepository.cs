@@ -1,6 +1,7 @@
 namespace WillysReceiptParser.Repositories;
 
 using Dapper;
+using WillysReceiptParser;
 using WillysReceiptParser.Helpers;
 
 public interface ILineItemRepository

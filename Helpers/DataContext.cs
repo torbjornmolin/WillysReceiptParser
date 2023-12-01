@@ -3,7 +3,6 @@ namespace WillysReceiptParser.Helpers;
 using System.Data;
 using Dapper;
 using Npgsql;
-using UglyToad.PdfPig.DocumentLayoutAnalysis;
 using Npgsql.Replication;
 
 public class DataContext
@@ -52,26 +51,10 @@ public class DataContext
         using var connection = CreateConnection();
         await _dropUsers();
         await _initLineItems();
-        //await _initUsers();
 
-        async Task _initUsers()
-        {
-            var sql = @"
-                CREATE TABLE IF NOT EXISTS Users (
-                    Id SERIAL PRIMARY KEY,
-                    Title VARCHAR,
-                    FirstName VARCHAR,
-                    LastName VARCHAR,
-                    Email VARCHAR,
-                    Role INTEGER,
-                    PasswordHash VARCHAR
-                );
-            ";
-            await connection.ExecuteAsync(sql);
-        }
         async Task _initLineItems()
         {
-            var sql = @"
+            const string sql = @"
                 CREATE TABLE IF NOT EXISTS LineItems (
                     Id SERIAL PRIMARY KEY,
                     Name VARCHAR,
@@ -84,7 +67,7 @@ public class DataContext
         }
         async Task _dropUsers()
         {
-            var sql = @"
+            const string sql = @"
                 DROP TABLE IF EXISTS Users;
             ";
             await connection.ExecuteAsync(sql);

@@ -1,11 +1,5 @@
-﻿using System.Collections.Immutable;
-using System.Data.Common;
-using System.Globalization;
+﻿using System.Globalization;
 using System.Text.RegularExpressions;
-using UglyToad.PdfPig;
-using UglyToad.PdfPig.Content;
-using WillysReceiptParser.Helpers;
-using WillysReceiptParser.Repositories;
 
 namespace WillysReceiptParser
 {
@@ -13,10 +7,13 @@ namespace WillysReceiptParser
     {
         public static async Task Main(string[] args)
         {
-            foreach (var file in Directory.GetFiles("kvitton", "*.pdf"))
+            const string receiptPath = @"C:\src\WillysReceiptParser\kvitton\";
+
+            var result = new List<Receipt>();
+            foreach (var file in Directory.GetFiles(receiptPath, "*.pdf"))
             {
                 var parser = new ReceiptParser(file, file.Replace(".pdf", ".json"));
-                parser.Parse();
+                result.Add(parser.Parse());
             }
         }
 

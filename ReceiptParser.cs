@@ -1,10 +1,13 @@
-using System.Globalization;
+using System.Diagnostics.CodeAnalysis;
+using System.Linq.Expressions;
 using System.Text.RegularExpressions;
+using System.Xml;
 
 namespace WillysReceiptParser
 {
-    public class ReceiptParser
+    public partial class ReceiptParser
     {
+        private const string wordListPath = @"wordlist.txt";
         private readonly string _pdfFile;
         private readonly string _metaDataFile;
         private readonly ReceiptSplitter splitter;
@@ -39,58 +42,123 @@ namespace WillysReceiptParser
         {
             var result = new Receipt();
             var segmentedReceipt = splitter.GetSegmentedReceipt(_pdfFile);
+            Console.WriteLine($"Parsing {_pdfFile}");
 
+            result.LineItems = ReadLineItems(segmentedReceipt).ToArray();
+            FixMissingCharacters(result.LineItems);
+
+            return result;
+        }
+
+        private List<LineItem> ReadLineItems(SegmentedReceipt segmentedReceipt)
+        {
             var lineItems = new List<LineItem>();
             for (int i = 0; i < segmentedReceipt.LineItems.Length; i++)
             {
                 var item = new LineItem();
+                var currentLine = segmentedReceipt.LineItems[i];
 
-                string line = segmentedReceipt.LineItems[i];
-                var parts = line.Split(" ", StringSplitOptions.RemoveEmptyEntries);
+                ParseInitialLine(currentLine, item);
 
-                // Hitta index för känt innehåll när vi är på rad 1.
-                // Namnet är allt fram till innehåll vid känt index (ex.vis. fram till 2st*4,90 eller fram till pris)
-                // Kolla om sista posten på raden är pris, om inte måste vi leta vidare på senare rader.
-                // De senare raderna måste kategoriseras på om de är prisrad (som för ost)
-                // eller om de är rabatt eller något annat.
-                int quantityPriceIndex = GetQuantityPriceIndex(parts);
+                // Get all additional lines belonging to an item
+                i++;
+                while (i < segmentedReceipt.LineItems.Length && ParseAdditionalLine(segmentedReceipt.LineItems[i], item))
+                    i++;
+                i--; // next for iteration will increment i
+
+                if (item.TotalPrice == default)
+                {
+                    throw new InvalidOperationException("Price not set for item.");
+                }
 
                 lineItems.Add(item);
             }
 
-            FixMissingCharacters(lineItems);
-            return result;
+            return lineItems;
         }
 
-        private int GetQuantityPriceIndex(string[] parts)
+        private void ParseInitialLine(string line, LineItem item)
         {
-            for (int i = 0; i < parts.Length; i++)
+            var singleLineWithQuantityMatch = singleLineWithQuantityItemRegex().Match(line);
+            var singleLineMatch = singleLineItemRegex().Match(line);
+            var singleLineNameOnlyMatch = singleLineItemNameOnlyRegex().Match(line);
+
+            // Order matters here
+
+            if (singleLineWithQuantityMatch?.Success ?? false)
             {
-                string? part = parts[i];
-                var trimmedPart = part.Trim();
-                if (Regex.IsMatch(part, "\d+st\*\d+,\d\d"))
-                {
-                    return i;
-                }
-            }
-            return -1;
-        }
+                item.Name = singleLineWithQuantityMatch.Groups.Values.ElementAt(1).Value.Trim();
+                item.Quantity = int.Parse(singleLineWithQuantityMatch.Groups.Values.ElementAt(2).Value);
+                item.UnitPrice = decimal.Parse(singleLineWithQuantityMatch.Groups.Values.ElementAt(3).Value);
+                item.TotalPrice = decimal.Parse(singleLineWithQuantityMatch.Groups.Values.ElementAt(4).Value);
 
-        private bool IsItemAdditionalLine(string line)
+                return;
+            }
+
+            else if (singleLineMatch?.Success ?? false)
+            {
+                item.Name = singleLineMatch.Groups.Values.ElementAt(1).Value.Trim();
+                item.Quantity = 1;
+                item.UnitPrice = decimal.Parse(singleLineMatch.Groups.Values.ElementAt(2).Value);
+                item.TotalPrice = decimal.Parse(singleLineMatch.Groups.Values.ElementAt(2).Value);
+
+                return;
+            }
+            else if (singleLineNameOnlyMatch?.Success ?? false)
+            {
+                item.Name = singleLineNameOnlyMatch.Groups.Values.ElementAt(1).Value.Trim();
+
+                return;
+            }
+
+            throw new InvalidOperationException($"{line} does not match any Initial line pattern.");
+        }
+        private bool ParseAdditionalLine(string line, LineItem item)
         {
-            line = line.ToLower();
-            if (line.Contains("rabatt"))
+            var discountLineMatch = discountLineItemRegex().Match(line);
+            var priceByWeightMatch = priceByWeightLine().Match(line);
+
+            if (discountLineMatch?.Success ?? false)
+            {
+                item.Discount = decimal.Parse(discountLineMatch.Groups.Values.ElementAt(1).Value);
+
                 return true;
-            if (line.Contains("pant"))
+            }
+
+            else if (priceByWeightMatch?.Success ?? false)
+            {
+                item.Quantity = decimal.Parse(priceByWeightMatch.Groups.Values.ElementAt(1).Value);
+                item.UnitPrice = decimal.Parse(priceByWeightMatch.Groups.Values.ElementAt(2).Value);
+                item.TotalPrice = decimal.Parse(priceByWeightMatch.Groups.Values.ElementAt(3).Value);
+
                 return true;
-            if (line.StartsWith(" "))
+            }
+
+            else if (extraprisWithNoInfo().IsMatch(line))
+            {
+                return true;
+            }
+            else if (rabattWithNoInfo().IsMatch(line))
+            {
+                return true;
+            }
+            else if (clearanceWithNoInfo().IsMatch(line))
+            {
+                return true;
+            }
+            else if (discontinuedWithNoInfo().IsMatch(line))
+            {
+                return true;
+            }
+            else if (willysPlusWithNoInfo().IsMatch(line))
             {
                 return true;
             }
             return false;
         }
 
-        private static void FixMissingCharacters(List<LineItem> items)
+
+        private static void FixMissingCharacters(LineItem[] items)
         {
             var wordDictionary = items.Where(i =>
             {
@@ -101,12 +169,11 @@ namespace WillysReceiptParser
             }
             ).Distinct().Select(i => i.Name).ToHashSet();
 
-            var savedWords = File.ReadAllLines("wordlist.txt");
+            var savedWords = File.ReadAllLines(wordListPath);
 
             foreach (var w in savedWords)
             {
-                if (!wordDictionary.Contains(w))
-                    wordDictionary.Add(w);
+                wordDictionary.Add(w);
             }
 
             foreach (var i in items.Where(i => i.Name.Contains('?')))
@@ -144,5 +211,36 @@ namespace WillysReceiptParser
             newWord = wordToAdd;
             return newWord;
         }
+
+        [GeneratedRegex(@"(.{19})\s+(\d+,\d\d)")]
+        private static partial Regex singleLineItemRegex();
+
+        [GeneratedRegex(@"(.+)\s?")]
+        private static partial Regex singleLineItemNameOnlyRegex();
+
+        [GeneratedRegex(@"(.{19})\s+(\d+)st.(\d+,\d\d)\s+(\d+,\d\d)")]
+        private static partial Regex singleLineWithQuantityItemRegex();
+
+        [GeneratedRegex(@".?(-\d+,\d\d)")]
+        private static partial Regex discountLineItemRegex();
+
+        [GeneratedRegex(@".xtrapris\s?")]
+        private static partial Regex extraprisWithNoInfo();
+
+        [GeneratedRegex(@".abatt.*")]
+        private static partial Regex rabattWithNoInfo();
+
+        [GeneratedRegex(@"[Uu]tf.rs.l.*")] // Utförsäljning
+        private static partial Regex clearanceWithNoInfo();
+
+
+        [GeneratedRegex(@"[Uu]tg.ende.*")] // utg?ende
+        private static partial Regex discontinuedWithNoInfo();
+
+        [GeneratedRegex(@"[Ww]illys.[Pp]lus.*")] // willys Plus:
+        private static partial Regex willysPlusWithNoInfo();
+
+        [GeneratedRegex(@"\s(\d+,\d+)kg.?(\d+,\d+)kr.kg\s+(\d+,\d+)")]
+        private static partial Regex priceByWeightLine();
     }
 }
