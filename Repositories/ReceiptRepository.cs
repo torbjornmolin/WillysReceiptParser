@@ -1,61 +1,64 @@
 namespace WillysReceiptParser.Repositories;
+
 using Dapper;
 using WillysReceiptParser;
 using WillysReceiptParser.Helpers;
 
-public interface ILineItemRepository
+public interface IReceiptRepository
 {
-    Task<IEnumerable<LineItem>> GetAll();
-    Task<LineItem> GetById(int id);
-    Task Create(LineItem LineItem);
-    Task Update(LineItem LineItem);
+    Task<IEnumerable<Receipt>> GetAll();
+    Task<Receipt> GetById(int id);
+    Task<int> Create(Receipt Receipt);
+    Task Update(Receipt Receipt);
     Task Delete(int id);
 }
 
-public class LineItemRepository : ILineItemRepository
+public class ReceiptRepository : IReceiptRepository
 {
     private readonly DataContext _context;
 
-    public LineItemRepository(DataContext context)
+    public ReceiptRepository(DataContext context)
     {
         _context = context;
     }
 
-    public async Task<IEnumerable<LineItem>> GetAll()
+    public async Task<IEnumerable<Receipt>> GetAll()
     {
         using var connection = _context.CreateConnection();
         const string sql = @"
-            SELECT * FROM LineItems
+            SELECT * FROM Receipts
         ";
-        return await connection.QueryAsync<LineItem>(sql);
+        return await connection.QueryAsync<Receipt>(sql);
     }
 
-    public async Task<LineItem> GetById(int id)
+    public async Task<Receipt> GetById(int id)
     {
         using var connection = _context.CreateConnection();
         const string sql = @"
-            SELECT * FROM LineItems 
+            SELECT * FROM Receipts 
             WHERE Id = @id
         ";
-        return await connection.QuerySingleOrDefaultAsync<LineItem>(sql, new { id });
+        return await connection.QuerySingleOrDefaultAsync<Receipt>(sql, new { id });
     }
 
-    public async Task Create(LineItem LineItem)
+    public async Task<int> Create(Receipt Receipt)
     {
         using var connection = _context.CreateConnection();
         const string sql = @"
-            INSERT INTO LineItems (name, quantity, unitprice, totalprice, receiptId)
-            VALUES (@Name, @Quantity, @UnitPrice, @TotalPrice, @ReceiptId)
+            INSERT INTO Receipts(
+	        Store, Date, TotalAmount, StoreId, FileOrigin)
+            VALUES (@Store, @Date, @TotalAmount, @StoreId, @FileOrigin)
+            RETURNING Id
         ";
-        await connection.ExecuteAsync(sql, LineItem);
+        return await connection.QuerySingleAsync<int>(sql, Receipt);
     }
 
-    public async Task Update(LineItem LineItem)
+    public async Task Update(Receipt Receipt)
     {
         throw new NotImplementedException();
         using var connection = _context.CreateConnection();
         const string sql = @"
-            UPDATE LineItems 
+            UPDATE Receipts 
             SET Title = @Title,
                 FirstName = @FirstName,
                 LastName = @LastName, 
@@ -64,14 +67,14 @@ public class LineItemRepository : ILineItemRepository
                 PasswordHash = @PasswordHash
             WHERE Id = @Id
         ";
-        await connection.ExecuteAsync(sql, LineItem);
+        await connection.ExecuteAsync(sql, Receipt);
     }
 
     public async Task Delete(int id)
     {
         using var connection = _context.CreateConnection();
         const string sql = @"
-            DELETE FROM LineItems 
+            DELETE FROM Receipts 
             WHERE Id = @id
         ";
         await connection.ExecuteAsync(sql, new { id });

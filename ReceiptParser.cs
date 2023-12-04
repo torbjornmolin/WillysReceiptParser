@@ -7,12 +7,12 @@ namespace WillysReceiptParser
 {
     public partial class ReceiptParser
     {
-        private const string wordListPath = @"wordlist.txt";
+        private readonly string wordListPath;
         private readonly string _pdfFile;
         private readonly string _metaDataFile;
         private readonly ReceiptSplitter splitter;
         private NumberFormatInfo numberFormatInfo = new NumberFormatInfo { NumberDecimalSeparator = "," };
-        public ReceiptParser(string pdfFile, string metaDataFile)
+        public ReceiptParser(string pdfFile, string metaDataFile, string wordListPath)
         {
             if (string.IsNullOrWhiteSpace(metaDataFile))
             {
@@ -26,7 +26,7 @@ namespace WillysReceiptParser
             }
             _pdfFile = pdfFile;
             _metaDataFile = metaDataFile;
-
+            this.wordListPath = wordListPath ?? throw new ArgumentNullException(nameof(wordListPath));
             if (!File.Exists(_pdfFile))
             {
                 throw new FileNotFoundException(_pdfFile);
@@ -187,7 +187,7 @@ namespace WillysReceiptParser
         }
 
 
-        private static void FixMissingCharacters(LineItem[] items)
+        private void FixMissingCharacters(LineItem[] items)
         {
             var wordDictionary = items.Where(i =>
             {
@@ -209,11 +209,7 @@ namespace WillysReceiptParser
             {
                 var pattern = i.Name.Replace('?', '.');
                 var newWord = wordDictionary.FirstOrDefault(w => Regex.IsMatch(w, pattern));
-                if (newWord is null)
-                {
-                    newWord = GetWordInteractive(wordDictionary, i);
-                }
-                Console.WriteLine($"Replacing {i.Name} with {newWord}");
+                newWord ??= GetWordInteractive(wordDictionary, i);
                 i.Name = newWord;
             }
             var words = wordDictionary.OrderBy(w => w).ToList();
@@ -241,13 +237,13 @@ namespace WillysReceiptParser
             return newWord;
         }
 
-        [GeneratedRegex(@"(.{19})\s+(\d+,\d\d)")]
+        [GeneratedRegex(@"(.{20})\s+(\d+,\d\d)")]
         private static partial Regex singleLineItemRegex();
 
         [GeneratedRegex(@"(.+)\s?")]
         private static partial Regex singleLineItemNameOnlyRegex();
 
-        [GeneratedRegex(@"(.{19})\s+(\d+)st.(\d+,\d\d)\s+(\d+,\d\d)")]
+        [GeneratedRegex(@"(.{20})\s+(\d+)st.(\d+,\d\d)\s+(\d+,\d\d)")]
         private static partial Regex singleLineWithQuantityItemRegex();
 
         [GeneratedRegex(@".?(-\d+,\d\d)")]

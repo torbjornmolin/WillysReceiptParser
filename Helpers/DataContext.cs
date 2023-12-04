@@ -3,7 +3,6 @@ namespace WillysReceiptParser.Helpers;
 using System.Data;
 using Dapper;
 using Npgsql;
-using Npgsql.Replication;
 
 public class DataContext
 {
@@ -51,6 +50,7 @@ public class DataContext
         using var connection = CreateConnection();
         await _dropUsers();
         await _initLineItems();
+        await _initReceipts();
 
         async Task _initLineItems()
         {
@@ -58,10 +58,25 @@ public class DataContext
                 CREATE TABLE IF NOT EXISTS LineItems (
                     Id SERIAL PRIMARY KEY,
                     Name VARCHAR,
-                    Quantity SMALLINT,
-                    UnitPrice money,
-                    TotalPrice money
+                    Quantity double precision,
+                    UnitPrice numeric(12,2),
+                    TotalPrice numeric(12,2),
+                    ReceiptId integer
                 );
+            ";
+            await connection.ExecuteAsync(sql);
+        }
+        async Task _initReceipts()
+        {
+            const string sql = @"
+                CREATE TABLE IF NOT EXISTS Receipts (
+                    Id SERIAL PRIMARY KEY,
+                    Store VARCHAR,
+                    Date timestamp without time zone,
+                    TotalAmount numeric(12,2),
+                    StoreId integer,
+                    FileOrigin VARCHAR
+                    );
             ";
             await connection.ExecuteAsync(sql);
         }

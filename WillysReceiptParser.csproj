@@ -20,10 +20,15 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="Repositories/" />
-  </ItemGroup>
-
-  <ItemGroup>
+    <None Update="dbconfig.example.json">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Update="dbconfig.json">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Update="local.conf">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
     <None Update="wordlist.txt">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>

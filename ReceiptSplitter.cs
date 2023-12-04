@@ -59,6 +59,8 @@ namespace WillysReceiptParser
             result = result.Replace('£', 'Ä');
             result = result.Replace('µ', 'Ö');
 
+            result = result.Replace('ఎ', '?');
+            
             return result;
         }
 

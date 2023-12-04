@@ -7,5 +7,6 @@ namespace WillysReceiptParser
         public decimal UnitPrice { get; set; }
         public decimal TotalPrice { get; set; }
         public decimal Discount { get; set; }
+        public int ReceiptId { get; set; }
     }
 }
