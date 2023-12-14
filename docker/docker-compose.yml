@@ -3,7 +3,7 @@ services:
   pg_data_wh:
     container_name: pg_data_wh
     image: postgres:15
-    restart: always
+    restart: no
     environment:
       POSTGRES_DB: my_data_wh_db
       POSTGRES_USER: my_data_wh_user
@@ -16,7 +16,7 @@ services:
   pg_grafana:
     container_name: pg_grafana
     image: postgres:15
-    restart: always
+    restart: no
     environment:
       POSTGRES_DB: my_grafana_db
       POSTGRES_USER: my_grafana_user
@@ -37,7 +37,7 @@ services:
       GF_DATABASE_USER: my_grafana_user
       GF_DATABASE_PASSWORD: my_grafana_pwd
       GF_DATABASE_SSL_MODE: disable
-    restart: unless-stopped
+    restart: no
     depends_on:
       - pg_grafana
     ports:
